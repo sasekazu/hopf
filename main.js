@@ -155,10 +155,10 @@ function generatePoints(mode, params) {
 
 // ============ MESH CREATION ============
 
-function createManifoldMesh(points, color, tubeRadius) {
+function createManifoldMesh(points, color, tubeRadius, tubularSegments, radialSegments) {
     const curve = new THREE.CatmullRomCurve3(points, true);
     
-    const geometry = new THREE.TubeGeometry(curve, 240, tubeRadius, 12, true);
+    const geometry = new THREE.TubeGeometry(curve, tubularSegments, tubeRadius, radialSegments, true);
     const material = new THREE.MeshStandardMaterial({
         color,
         roughness: 0.35,
@@ -180,6 +180,8 @@ const params = {
     
     // Common parameters
     tubeRadius: 0.025,
+    tubularSegments: 240,
+    radialSegments: 12,
     showGrid: true,
     
     // Hopf parameters
@@ -197,7 +199,7 @@ const params = {
         majorRadius: 2.0,
         minorRadius: 0.7,
         winding: 3,
-        count: 8
+        count: 12
     },
     
     // Möbius parameters
@@ -205,7 +207,7 @@ const params = {
         width: 0.5,
         twist: 1,
         flow: 0.3,
-        count: 6
+        count: 12
     },
     
     // Klein parameters
@@ -213,7 +215,7 @@ const params = {
         a: 2.0,
         v: 0.5,
         twist: 2,
-        count: 8
+        count: 12
     }
 };
 
@@ -256,7 +258,7 @@ function updateManifolds() {
                 const color = new THREE.Color().setHSL(hue, 0.75, 0.55);
                 
                 const points = generatePoints(mode, { a, b, c, d });
-                const mesh = createManifoldMesh(points, color, params.tubeRadius);
+                const mesh = createManifoldMesh(points, color, params.tubeRadius, params.tubularSegments, params.radialSegments);
                 scene.add(mesh);
                 manifoldMeshes.push(mesh);
                 
@@ -279,7 +281,7 @@ function updateManifolds() {
                 winding: winding
             });
             
-            const mesh = createManifoldMesh(points, color, params.tubeRadius);
+            const mesh = createManifoldMesh(points, color, params.tubeRadius, params.tubularSegments, params.radialSegments);
             scene.add(mesh);
             manifoldMeshes.push(mesh);
         }
@@ -300,7 +302,7 @@ function updateManifolds() {
                 flow: flow
             });
             
-            const mesh = createManifoldMesh(points, color, params.tubeRadius);
+            const mesh = createManifoldMesh(points, color, params.tubeRadius, params.tubularSegments, params.radialSegments);
             scene.add(mesh);
             manifoldMeshes.push(mesh);
         }
@@ -320,7 +322,7 @@ function updateManifolds() {
                 twist: kleinParams.twist
             });
             
-            const mesh = createManifoldMesh(points, color, params.tubeRadius);
+            const mesh = createManifoldMesh(points, color, params.tubeRadius, params.tubularSegments, params.radialSegments);
             scene.add(mesh);
             manifoldMeshes.push(mesh);
         }
@@ -401,10 +403,10 @@ torusFolder.add(params.torus, 'majorRadius', 0.5, 5, 0.1)
 torusFolder.add(params.torus, 'minorRadius', 0.1, 2, 0.1)
     .name('Minor Radius')
     .onChange(updateManifolds);
-torusFolder.add(params.torus, 'winding', 1, 10, 1)
+torusFolder.add(params.torus, 'winding', 1, 50, 1)
     .name('Winding')
     .onChange(updateManifolds);
-torusFolder.add(params.torus, 'count', 1, 20, 1)
+torusFolder.add(params.torus, 'count', 1, 100, 1)
     .name('Curve Count')
     .onChange(updateManifolds);
 
@@ -413,13 +415,13 @@ const mobiusFolder = gui.addFolder('Möbius Parameters');
 mobiusFolder.add(params.mobius, 'width', 0.1, 1.5, 0.05)
     .name('Width')
     .onChange(updateManifolds);
-mobiusFolder.add(params.mobius, 'twist', 0.5, 3, 0.5)
+mobiusFolder.add(params.mobius, 'twist', 0.5, 3, 0.05)
     .name('Twist')
     .onChange(updateManifolds);
 mobiusFolder.add(params.mobius, 'flow', 0, 1, 0.05)
     .name('Flow')
     .onChange(updateManifolds);
-mobiusFolder.add(params.mobius, 'count', 1, 15, 1)
+mobiusFolder.add(params.mobius, 'count', 1, 50, 1)
     .name('Curve Count')
     .onChange(updateManifolds);
 
@@ -431,7 +433,7 @@ kleinFolder.add(params.klein, 'a', 0.5, 4, 0.1)
 kleinFolder.add(params.klein, 'twist', 1, 5, 1)
     .name('Twist')
     .onChange(updateManifolds);
-kleinFolder.add(params.klein, 'count', 1, 20, 1)
+kleinFolder.add(params.klein, 'count', 1, 50, 1)
     .name('Curve Count')
     .onChange(updateManifolds);
 
@@ -439,6 +441,12 @@ kleinFolder.add(params.klein, 'count', 1, 20, 1)
 const appearanceFolder = gui.addFolder('Appearance');
 appearanceFolder.add(params, 'tubeRadius', 0.005, 0.1, 0.001)
     .name('Tube Radius')
+    .onChange(updateManifolds);
+appearanceFolder.add(params, 'tubularSegments', 10, 500, 10)
+    .name('Length Segments')
+    .onChange(updateManifolds);
+appearanceFolder.add(params, 'radialSegments', 3, 32, 1)
+    .name('Radial Segments')
     .onChange(updateManifolds);
 appearanceFolder.add(params, 'showGrid')
     .name('Show Grid')
