@@ -96,6 +96,10 @@ const params = {
     showGrid: true
 };
 
+// Store previous values for maintaining width
+let prevThetaMin = params.thetaMin;
+let prevPhiMin = params.phiMin;
+
 function updateFibers() {
     // Remove old fibers
     fiberMeshes.forEach(mesh => {
@@ -153,21 +157,45 @@ divisionFolder.add(params, 'phiDivisions', 1, 30, 1)
 divisionFolder.open();
 
 const thetaFolder = gui.addFolder('Theta Range');
-thetaFolder.add(params, 'thetaMin', 0, 180, 1)
+const thetaMinController = thetaFolder.add(params, 'thetaMin', 0, 180, 1)
     .name('Min')
-    .onChange(updateFibers);
-thetaFolder.add(params, 'thetaMax', 0, 180, 1)
+    .onChange((value) => {
+        const delta = value - prevThetaMin;
+        params.thetaMax = Math.min(180, params.thetaMax + delta);
+        prevThetaMin = value;
+        thetaMaxController.updateDisplay();
+        updateFibers();
+    });
+const thetaMaxController = thetaFolder.add(params, 'thetaMax', 0, 180, 1)
     .name('Max')
-    .onChange(updateFibers);
+    .onChange((value) => {
+        if (value < params.thetaMin) {
+            params.thetaMax = params.thetaMin;
+            thetaMaxController.updateDisplay();
+        }
+        updateFibers();
+    });
 thetaFolder.open();
 
 const phiFolder = gui.addFolder('Phi Range');
-phiFolder.add(params, 'phiMin', 0, 360, 1)
+const phiMinController = phiFolder.add(params, 'phiMin', 0, 360, 1)
     .name('Min')
-    .onChange(updateFibers);
-phiFolder.add(params, 'phiMax', 0, 360, 1)
+    .onChange((value) => {
+        const delta = value - prevPhiMin;
+        params.phiMax = Math.min(360, params.phiMax + delta);
+        prevPhiMin = value;
+        phiMaxController.updateDisplay();
+        updateFibers();
+    });
+const phiMaxController = phiFolder.add(params, 'phiMax', 0, 360, 1)
     .name('Max')
-    .onChange(updateFibers);
+    .onChange((value) => {
+        if (value < params.phiMin) {
+            params.phiMax = params.phiMin;
+            phiMaxController.updateDisplay();
+        }
+        updateFibers();
+    });
 phiFolder.open();
 
 const appearanceFolder = gui.addFolder('Appearance');
