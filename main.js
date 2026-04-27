@@ -33,7 +33,9 @@ const light = new THREE.DirectionalLight(0xffffff, 0.8);
 light.position.set(5, 5, 5);
 camera.add(light);
 
-// Hopf Fibration Implementation
+// ============ MANIFOLD GENERATORS ============
+
+// Hopf Fibration (4D → 3D stereographic projection)
 function stereographic(q) {
     const w = q.w;
     const denom = Math.max(1e-4, 1.0 - w);
@@ -46,8 +48,9 @@ function stereographic(q) {
     );
 }
 
-function makeFiber(a, b, c, d, segments = 240) {
+function generateHopf(params) {
     const pts = [];
+    const segments = 240;
     
     for (let i = 0; i <= segments; i++) {
         const t = 2 * Math.PI * i / segments;
@@ -55,10 +58,10 @@ function makeFiber(a, b, c, d, segments = 240) {
         const st = Math.sin(t);
         
         const q = {
-            w: a * ct - b * st,
-            x: a * st + b * ct,
-            y: c * ct - d * st,
-            z: c * st + d * ct
+            w: params.a * ct - params.b * st,
+            x: params.a * st + params.b * ct,
+            y: params.c * ct - params.d * st,
+            z: params.c * st + params.d * ct
         };
         
         pts.push(stereographic(q));
@@ -67,11 +70,95 @@ function makeFiber(a, b, c, d, segments = 240) {
     return pts;
 }
 
-function addFiber(scene, a, b, c, d, color, radius = 0.025) {
-    const pts = makeFiber(a, b, c, d);
-    const curve = new THREE.CatmullRomCurve3(pts, true);
+// Torus
+function generateTorus(params) {
+    const pts = [];
+    const segments = 240;
+    const R = params.majorRadius || 2.0;
+    const r = params.minorRadius || 0.7;
+    const winding = params.winding || 1;
     
-    const geometry = new THREE.TubeGeometry(curve, 240, radius, 12, true);
+    for (let i = 0; i <= segments; i++) {
+        const u = 2 * Math.PI * i / segments;
+        const v = 2 * Math.PI * winding * i / segments;
+        
+        const x = (R + r * Math.cos(v)) * Math.cos(u);
+        const y = (R + r * Math.cos(v)) * Math.sin(u);
+        const z = r * Math.sin(v);
+        
+        pts.push(new THREE.Vector3(x, y, z));
+    }
+    
+    return pts;
+}
+
+// Möbius Strip
+function generateMobius(params) {
+    const pts = [];
+    const segments = 240;
+    const width = params.width || 0.5;
+    const twist = params.twist || 1;
+    const flow = params.flow || 0.0;
+    
+    for (let i = 0; i <= segments; i++) {
+        const u = 2 * Math.PI * i / segments;
+        const v = width * (flow + Math.sin(i / segments * Math.PI * 4));
+        
+        const x = (1 + v * Math.cos(twist * u / 2)) * Math.cos(u);
+        const y = (1 + v * Math.cos(twist * u / 2)) * Math.sin(u);
+        const z = v * Math.sin(twist * u / 2);
+        
+        pts.push(new THREE.Vector3(x, y, z));
+    }
+    
+    return pts;
+}
+
+// Klein Bottle
+function generateKlein(params) {
+    const pts = [];
+    const segments = 240;
+    const a = params.a || 2.0;
+    const v = params.v || 0.5;
+    const twist = params.twist || 1;
+    
+    for (let i = 0; i <= segments; i++) {
+        const u = 2 * Math.PI * i / segments * twist;
+        
+        const r = a * (1 - Math.cos(u) / 2);
+        const x = r * Math.cos(u) + a * Math.cos(u) * Math.cos(v);
+        const y = r * Math.sin(u) + a * Math.sin(u) * Math.cos(v);
+        const z = a * Math.sin(v);
+        
+        pts.push(new THREE.Vector3(x, y, z));
+    }
+    
+    return pts;
+}
+
+// ============ UNIFIED POINT GENERATION ============
+
+function generatePoints(mode, params) {
+    switch (mode) {
+        case 'hopf':
+            return generateHopf(params);
+        case 'torus':
+            return generateTorus(params);
+        case 'mobius':
+            return generateMobius(params);
+        case 'klein':
+            return generateKlein(params);
+        default:
+            return generateHopf(params);
+    }
+}
+
+// ============ MESH CREATION ============
+
+function createManifoldMesh(points, color, tubeRadius) {
+    const curve = new THREE.CatmullRomCurve3(points, true);
+    
+    const geometry = new THREE.TubeGeometry(curve, 240, tubeRadius, 12, true);
     const material = new THREE.MeshStandardMaterial({
         color,
         roughness: 0.35,
@@ -81,133 +168,314 @@ function addFiber(scene, a, b, c, d, color, radius = 0.025) {
     return new THREE.Mesh(geometry, material);
 }
 
-// Hopf fiber meshes
-let fiberMeshes = [];
+// ============ MANIFOLD MESHES ============
 
-// Parameters
+let manifoldMeshes = [];
+
+// ============ PARAMETERS ============
+
 const params = {
-    thetaDivisions: 5,
-    phiDivisions: 8,
-    thetaMin: 80,
-    thetaMax: 98,
-    phiMin: 100,
-    phiMax: 136,
+    // Mode selection
+    mode: 'hopf',
+    
+    // Common parameters
     tubeRadius: 0.025,
-    showGrid: true
+    showGrid: true,
+    
+    // Hopf parameters
+    hopf: {
+        thetaDivisions: 5,
+        phiDivisions: 8,
+        thetaMin: 80,
+        thetaMax: 98,
+        phiMin: 100,
+        phiMax: 136
+    },
+    
+    // Torus parameters
+    torus: {
+        majorRadius: 2.0,
+        minorRadius: 0.7,
+        winding: 3,
+        count: 8
+    },
+    
+    // Möbius parameters
+    mobius: {
+        width: 0.5,
+        twist: 1,
+        flow: 0.3,
+        count: 6
+    },
+    
+    // Klein parameters
+    klein: {
+        a: 2.0,
+        v: 0.5,
+        twist: 2,
+        count: 8
+    }
 };
 
-// Store previous values for maintaining width
-let prevThetaMin = params.thetaMin;
-let prevPhiMin = params.phiMin;
+// ============ UPDATE FUNCTION ============
 
-function updateFibers() {
-    // Remove old fibers
-    fiberMeshes.forEach(mesh => {
+function updateManifolds() {
+    // Remove old meshes
+    manifoldMeshes.forEach(mesh => {
         scene.remove(mesh);
         mesh.geometry.dispose();
         mesh.material.dispose();
     });
-    fiberMeshes = [];
+    manifoldMeshes = [];
     
-    // Generate multiple fibers
-    const thetaDivs = Math.max(1, params.thetaDivisions);
-    const phiDivs = Math.max(1, params.phiDivisions);
+    const mode = params.mode;
     
-    let fiberCount = 0;
-    const totalFibers = thetaDivs * phiDivs;
-    
-    for (let i = 0; i < thetaDivs; i++) {
-        for (let j = 0; j < phiDivs; j++) {
-            const theta = params.thetaMin + (params.thetaMax - params.thetaMin) * i / Math.max(1, thetaDivs - 1);
-            const phi = params.phiMin + (params.phiMax - params.phiMin) * j / Math.max(1, phiDivs - 1);
-            
-            const thetaRad = (theta * Math.PI) / 180;
-            const phiRad = (phi * Math.PI) / 180;
-            
-            const a = Math.cos(thetaRad / 2);
-            const b = 0.0;
-            const c = Math.sin(thetaRad / 2) * Math.cos(phiRad);
-            const d = Math.sin(thetaRad / 2) * Math.sin(phiRad);
-            
-            const hue = fiberCount / totalFibers;
+    if (mode === 'hopf') {
+        // Generate multiple Hopf fibers
+        const hopfParams = params.hopf;
+        const thetaDivs = Math.max(1, hopfParams.thetaDivisions);
+        const phiDivs = Math.max(1, hopfParams.phiDivisions);
+        
+        let fiberCount = 0;
+        const totalFibers = thetaDivs * phiDivs;
+        
+        for (let i = 0; i < thetaDivs; i++) {
+            for (let j = 0; j < phiDivs; j++) {
+                const theta = hopfParams.thetaMin + (hopfParams.thetaMax - hopfParams.thetaMin) * i / Math.max(1, thetaDivs - 1);
+                const phi = hopfParams.phiMin + (hopfParams.phiMax - hopfParams.phiMin) * j / Math.max(1, phiDivs - 1);
+                
+                const thetaRad = (theta * Math.PI) / 180;
+                const phiRad = (phi * Math.PI) / 180;
+                
+                const a = Math.cos(thetaRad / 2);
+                const b = 0.0;
+                const c = Math.sin(thetaRad / 2) * Math.cos(phiRad);
+                const d = Math.sin(thetaRad / 2) * Math.sin(phiRad);
+                
+                const hue = fiberCount / totalFibers;
+                const color = new THREE.Color().setHSL(hue, 0.75, 0.55);
+                
+                const points = generatePoints(mode, { a, b, c, d });
+                const mesh = createManifoldMesh(points, color, params.tubeRadius);
+                scene.add(mesh);
+                manifoldMeshes.push(mesh);
+                
+                fiberCount++;
+            }
+        }
+    } else if (mode === 'torus') {
+        // Generate multiple torus curves
+        const torusParams = params.torus;
+        const count = torusParams.count;
+        
+        for (let i = 0; i < count; i++) {
+            const winding = torusParams.winding + i * 0.2;
+            const hue = i / count;
             const color = new THREE.Color().setHSL(hue, 0.75, 0.55);
             
-            const mesh = addFiber(scene, a, b, c, d, color, params.tubeRadius);
-            scene.add(mesh);
-            fiberMeshes.push(mesh);
+            const points = generatePoints(mode, {
+                majorRadius: torusParams.majorRadius,
+                minorRadius: torusParams.minorRadius,
+                winding: winding
+            });
             
-            fiberCount++;
+            const mesh = createManifoldMesh(points, color, params.tubeRadius);
+            scene.add(mesh);
+            manifoldMeshes.push(mesh);
+        }
+    } else if (mode === 'mobius') {
+        // Generate multiple Möbius strips
+        const mobiusParams = params.mobius;
+        const count = mobiusParams.count;
+        
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * 2 * Math.PI;
+            const flow = mobiusParams.flow * Math.cos(angle);
+            const hue = i / count;
+            const color = new THREE.Color().setHSL(hue, 0.75, 0.55);
+            
+            const points = generatePoints(mode, {
+                width: mobiusParams.width,
+                twist: mobiusParams.twist,
+                flow: flow
+            });
+            
+            const mesh = createManifoldMesh(points, color, params.tubeRadius);
+            scene.add(mesh);
+            manifoldMeshes.push(mesh);
+        }
+    } else if (mode === 'klein') {
+        // Generate multiple Klein bottle curves
+        const kleinParams = params.klein;
+        const count = kleinParams.count;
+        
+        for (let i = 0; i < count; i++) {
+            const v = (i / count) * Math.PI;
+            const hue = i / count;
+            const color = new THREE.Color().setHSL(hue, 0.75, 0.55);
+            
+            const points = generatePoints(mode, {
+                a: kleinParams.a,
+                v: v,
+                twist: kleinParams.twist
+            });
+            
+            const mesh = createManifoldMesh(points, color, params.tubeRadius);
+            scene.add(mesh);
+            manifoldMeshes.push(mesh);
         }
     }
 }
 
-// Initialize fibers
-updateFibers();
+// Storage for maintaining width behavior in Hopf mode
+let prevThetaMin = params.hopf.thetaMin;
+let prevPhiMin = params.hopf.phiMin;
 
-// GUI setup
+// Initialize
+updateManifolds();
+
+// ============ GUI SETUP ============
+
 const gui = new GUI();
 
-const divisionFolder = gui.addFolder('Divisions');
-divisionFolder.add(params, 'thetaDivisions', 1, 20, 1)
-    .name('Theta Divisions')
-    .onChange(updateFibers);
-divisionFolder.add(params, 'phiDivisions', 1, 30, 1)
-    .name('Phi Divisions')
-    .onChange(updateFibers);
-divisionFolder.open();
+// Mode selection
+const modeController = gui.add(params, 'mode', ['hopf', 'torus', 'mobius', 'klein'])
+    .name('Manifold Type')
+    .onChange(() => {
+        updateManifolds();
+        updateGUIVisibility();
+    });
 
-const thetaFolder = gui.addFolder('Theta Range');
-const thetaMinController = thetaFolder.add(params, 'thetaMin', 0, 180, 1)
-    .name('Min')
+// Hopf controls
+const hopfFolder = gui.addFolder('Hopf Parameters');
+const hopfThetaDivsCtrl = hopfFolder.add(params.hopf, 'thetaDivisions', 1, 20, 1)
+    .name('Theta Divisions')
+    .onChange(updateManifolds);
+const hopfPhiDivsCtrl = hopfFolder.add(params.hopf, 'phiDivisions', 1, 30, 1)
+    .name('Phi Divisions')
+    .onChange(updateManifolds);
+
+const hopfThetaMinCtrl = hopfFolder.add(params.hopf, 'thetaMin', 0, 180, 1)
+    .name('Theta Min')
     .onChange((value) => {
         const delta = value - prevThetaMin;
-        params.thetaMax = Math.min(180, params.thetaMax + delta);
+        params.hopf.thetaMax = Math.min(180, params.hopf.thetaMax + delta);
         prevThetaMin = value;
-        thetaMaxController.updateDisplay();
-        updateFibers();
+        hopfThetaMaxCtrl.updateDisplay();
+        updateManifolds();
     });
-const thetaMaxController = thetaFolder.add(params, 'thetaMax', 0, 180, 1)
-    .name('Max')
+const hopfThetaMaxCtrl = hopfFolder.add(params.hopf, 'thetaMax', 0, 180, 1)
+    .name('Theta Max')
     .onChange((value) => {
-        if (value < params.thetaMin) {
-            params.thetaMax = params.thetaMin;
-            thetaMaxController.updateDisplay();
+        if (value < params.hopf.thetaMin) {
+            params.hopf.thetaMax = params.hopf.thetaMin;
+            hopfThetaMaxCtrl.updateDisplay();
         }
-        updateFibers();
+        updateManifolds();
     });
-thetaFolder.open();
 
-const phiFolder = gui.addFolder('Phi Range');
-const phiMinController = phiFolder.add(params, 'phiMin', 0, 360, 1)
-    .name('Min')
+const hopfPhiMinCtrl = hopfFolder.add(params.hopf, 'phiMin', 0, 360, 1)
+    .name('Phi Min')
     .onChange((value) => {
         const delta = value - prevPhiMin;
-        params.phiMax = Math.min(360, params.phiMax + delta);
+        params.hopf.phiMax = Math.min(360, params.hopf.phiMax + delta);
         prevPhiMin = value;
-        phiMaxController.updateDisplay();
-        updateFibers();
+        hopfPhiMaxCtrl.updateDisplay();
+        updateManifolds();
     });
-const phiMaxController = phiFolder.add(params, 'phiMax', 0, 360, 1)
-    .name('Max')
+const hopfPhiMaxCtrl = hopfFolder.add(params.hopf, 'phiMax', 0, 360, 1)
+    .name('Phi Max')
     .onChange((value) => {
-        if (value < params.phiMin) {
-            params.phiMax = params.phiMin;
-            phiMaxController.updateDisplay();
+        if (value < params.hopf.phiMin) {
+            params.hopf.phiMax = params.hopf.phiMin;
+            hopfPhiMaxCtrl.updateDisplay();
         }
-        updateFibers();
+        updateManifolds();
     });
-phiFolder.open();
 
+// Torus controls
+const torusFolder = gui.addFolder('Torus Parameters');
+torusFolder.add(params.torus, 'majorRadius', 0.5, 5, 0.1)
+    .name('Major Radius')
+    .onChange(updateManifolds);
+torusFolder.add(params.torus, 'minorRadius', 0.1, 2, 0.1)
+    .name('Minor Radius')
+    .onChange(updateManifolds);
+torusFolder.add(params.torus, 'winding', 1, 10, 1)
+    .name('Winding')
+    .onChange(updateManifolds);
+torusFolder.add(params.torus, 'count', 1, 20, 1)
+    .name('Curve Count')
+    .onChange(updateManifolds);
+
+// Möbius controls
+const mobiusFolder = gui.addFolder('Möbius Parameters');
+mobiusFolder.add(params.mobius, 'width', 0.1, 1.5, 0.05)
+    .name('Width')
+    .onChange(updateManifolds);
+mobiusFolder.add(params.mobius, 'twist', 0.5, 3, 0.5)
+    .name('Twist')
+    .onChange(updateManifolds);
+mobiusFolder.add(params.mobius, 'flow', 0, 1, 0.05)
+    .name('Flow')
+    .onChange(updateManifolds);
+mobiusFolder.add(params.mobius, 'count', 1, 15, 1)
+    .name('Curve Count')
+    .onChange(updateManifolds);
+
+// Klein controls
+const kleinFolder = gui.addFolder('Klein Parameters');
+kleinFolder.add(params.klein, 'a', 0.5, 4, 0.1)
+    .name('Scale')
+    .onChange(updateManifolds);
+kleinFolder.add(params.klein, 'twist', 1, 5, 1)
+    .name('Twist')
+    .onChange(updateManifolds);
+kleinFolder.add(params.klein, 'count', 1, 20, 1)
+    .name('Curve Count')
+    .onChange(updateManifolds);
+
+// Common appearance controls
 const appearanceFolder = gui.addFolder('Appearance');
 appearanceFolder.add(params, 'tubeRadius', 0.005, 0.1, 0.001)
     .name('Tube Radius')
-    .onChange(updateFibers);
+    .onChange(updateManifolds);
 appearanceFolder.add(params, 'showGrid')
     .name('Show Grid')
     .onChange((value) => {
         grid.visible = value;
     });
 appearanceFolder.open();
+
+// Function to show/hide folders based on mode
+function updateGUIVisibility() {
+    const mode = params.mode;
+    
+    if (mode === 'hopf') {
+        hopfFolder.show().open();
+        torusFolder.hide();
+        mobiusFolder.hide();
+        kleinFolder.hide();
+    } else if (mode === 'torus') {
+        hopfFolder.hide();
+        torusFolder.show().open();
+        mobiusFolder.hide();
+        kleinFolder.hide();
+    } else if (mode === 'mobius') {
+        hopfFolder.hide();
+        torusFolder.hide();
+        mobiusFolder.show().open();
+        kleinFolder.hide();
+    } else if (mode === 'klein') {
+        hopfFolder.hide();
+        torusFolder.hide();
+        mobiusFolder.hide();
+        kleinFolder.show().open();
+    }
+}
+
+// Initial visibility
+updateGUIVisibility();
 
 function animate() {
     requestAnimationFrame(animate);
