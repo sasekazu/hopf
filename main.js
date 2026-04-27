@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GUI } from 'lil-gui';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a1a);
@@ -48,5 +49,17 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+// GUI setup
+const gui = new GUI();
+const params = {
+    rotationZ: 0
+};
+
+gui.add(params, 'rotationZ', 0, 360, 1)
+    .name('Z Rotation')
+    .onChange((value) => {
+        cube.rotation.z = (value * Math.PI) / 180;
+    });
 
 animate();
